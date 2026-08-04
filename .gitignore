@@ -1,0 +1,21 @@
+# qbt runtime artifacts
+cache/
+runs/
+.env
+*.sqlite
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

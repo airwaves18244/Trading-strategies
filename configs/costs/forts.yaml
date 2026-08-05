@@ -1,0 +1,7 @@
+commission_bps: 0.8
+exchange_fee_bps: 0.5
+half_spread_bps: 1.5
+impact_coef_bps: 5.0
+impact_exponent: 0.5
+borrow_bps_yr: 0.0
+fixed_rub_per_trade: 0.0

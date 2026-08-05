@@ -1,0 +1,34 @@
+# Example provider configuration for qbt.
+#
+# This file is documentation of the *shape* only — credentials themselves are read from
+# environment variables / .env by WS-A's qbt.core.config.Settings (QBT_-prefixed), never
+# from yaml, so this file is safe to commit. Copy relevant bits into your own notes or a
+# local (git-ignored) configs/providers.yaml if you want a non-secret record of which
+# providers are enabled.
+
+providers:
+  moex_iss:
+    enabled: true
+    # Free, anonymous, no key. Base https://iss.moex.com/iss.
+
+  algopack:
+    enabled: false
+    # MOEX ALGOPACK (paid, data.moex.com subscription). Bearer token.
+    # Set QBT_ALGOPACK_TOKEN in your .env — see qbt/data/providers/algopack.py.
+    # A missing/invalid token does NOT 401; ALGOPACK answers HTTP 200 with an HTML login
+    # page, which qbt detects and raises ProviderAuthError for.
+    token_env: QBT_ALGOPACK_TOKEN
+
+  finam:
+    enabled: false
+    # Finam Trade API (REST). Secret -> 15-minute JWT, auto-refreshed 2 min before expiry.
+    # Set QBT_FINAM_SECRET in your .env — see qbt/data/providers/finam.py.
+    # NOTE: Finam endpoint paths/timeframe tokens are marked VERIFY-ON-WINDOWS in that
+    # module; this sandbox cannot reach api.finam.ru to confirm them live.
+    secret_env: QBT_FINAM_SECRET
+
+  files:
+    enabled: true
+    # Local CSV/parquet import — the seam for the user's existing FINAM_DATA exports and
+    # any documented event-schema CSVs (qbt/data/schemas.py). No key needed.
+    base_dir: FINAM_DATA/

@@ -1,0 +1,7 @@
+{
+  "url": "https://iss.moex.com/iss/securities/SBER/dividends.json",
+  "path": "/securities/SBER/dividends.json",
+  "params": {},
+  "status_code": 200,
+  "body": "{\n\"dividends\": {\n\t\"metadata\": {\n\t\t\"secid\": {\"type\": \"string\", \"bytes\": 36, \"max_size\": 0},\n\t\t\"isin\": {\"type\": \"string\", \"bytes\": 36, \"max_size\": 0},\n\t\t\"registryclosedate\": {\"type\": \"date\", \"bytes\": 10, \"max_size\": 0},\n\t\t\"value\": {\"type\": \"double\"},\n\t\t\"currencyid\": {\"type\": \"string\", \"bytes\": 9, \"max_size\": 0}\n\t},\n\t\"columns\": [\"secid\", \"isin\", \"registryclosedate\", \"value\", \"currencyid\"], \n\t\"data\": [\n\t\t[\"SBER\", \"RU0009029540\", \"2019-06-13\", 16, \"RUB\"],\n\t\t[\"SBER\", \"RU0009029540\", \"2020-10-05\", 18.7, \"RUB\"],\n\t\t[\"SBER\", \"RU0009029540\", \"2021-05-12\", 18.7, \"RUB\"],\n\t\t[\"SBER\", \"RU0009029540\", \"2023-05-11\", 25, \"RUB\"],\n\t\t[\"SBER\", \"RU0009029540\", \"2024-07-11\", 33.3, \"RUB\"],\n\t\t[\"SBER\", \"RU0009029540\", \"2025-07-18\", 34.84, \"RUB\"]\n\t]\n}}\n"
+}

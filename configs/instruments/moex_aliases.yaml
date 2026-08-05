@@ -1,0 +1,17 @@
+# Ticker rename / redomiciliation alias map for MOEX-listed instruments.
+#
+# key:   historical ticker, as it appears in older bars or CSV exports (e.g. FINAM_DATA/)
+# value: current canonical SECID to resolve it to; `null` means "delisted, no MOEX
+#        successor" — downstream code (WS-A universe/continuous-series stitching) must
+#        treat a null-mapped symbol as terminated rather than silently dropping history.
+#
+# Loaded via qbt.data.providers.load_aliases().
+
+aliases:
+  YNDX: YDEX      # Yandex N.V. -> MOEX-domiciled "Yandex" (MKPAO) after 2024 redomiciliation
+  TCSG: T         # TCS Group -> "T-Technologies" ticker rebrand, 2024
+  FIVE: X5        # X5 Retail Group GDR -> X5 Group PJSC after 2024 redomiciliation
+  POLY: null      # Polymetal International — delisted from MOEX in 2023 (moved primary
+                  # listing to AIX, Kazakhstan); no MOEX successor ticker.
+  GAZP: GAZP      # unchanged; listed here for documentation completeness
+  SBER: SBER      # unchanged; listed here for documentation completeness

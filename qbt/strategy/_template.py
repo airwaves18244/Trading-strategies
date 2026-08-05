@@ -37,8 +37,8 @@ class MyStrategy(Strategy):
     )
 
     def generate(self, ctx: DataContext) -> Signals:
-        signal = skip_month_return(ctx.total_return,
-                                   formation=self.p["formation"], skip=21)
+        signal = skip_month_return(ctx.total_return, formation=self.p["formation"],
+                                   skip=21, bars_per_month=1)  # params in bars
         return cross_sectional_weights(
             signal, ctx.universe_mask,
             top_frac=self.p["top_frac"], bottom_frac=self.p["top_frac"],

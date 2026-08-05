@@ -56,5 +56,5 @@ class EquityValueQuality(Strategy):
             top_frac=self.p["top_frac"], bottom_frac=self.p["top_frac"],
             long_only=self.p["long_only"],
             sector_map=sector_map, sector_neutral=self.p["sector_neutral"],
-            rebalance_dates=ctx.rebalance_dates("ME"),
+            rebalance_dates=ctx.rebalance_dates("ME"), min_names=2,
         )

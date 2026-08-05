@@ -29,8 +29,9 @@ class XsEquityMomentum(Strategy):
     )
 
     def generate(self, ctx: DataContext) -> Signals:
+        # params are in BARS; lib helper counts months -> use bars_per_month=1
         signal = skip_month_return(ctx.total_return, formation=self.p["formation"],
-                                   skip=self.p["skip"])
+                                   skip=self.p["skip"], bars_per_month=1)
         sector_map = {s: (i.sector or "NA") for s, i in ctx.instruments.items()}
         vol = trailing_vol(ctx.ret()) if self.p["weighting"] == "inverse_vol" else None
         return cross_sectional_weights(

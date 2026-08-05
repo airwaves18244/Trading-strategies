@@ -46,10 +46,11 @@ class EquityValueQuality(Strategy):
         book = self._metric_frame(ev, "book", ctx)
         gp = self._metric_frame(ev, "gross_profit", ctx)
         px = ctx.close
-        value = zscore_xs(eps / px) * 0.5 + zscore_xs(book / px) * 0.5
-        quality = zscore_xs(gp / book.replace(0, np.nan)) if gp.notna().any().any() else value * 0
+        value = zscore_xs(eps / px).fillna(0.0) * 0.5 + zscore_xs(book / px).fillna(0.0) * 0.5
+        quality = (zscore_xs(gp / book.replace(0, np.nan)).fillna(0.0)
+                   if gp.notna().any().any() else value * 0.0)
         vw = self.p["value_weight"]
-        signal = vw * value + (1 - vw) * quality
+        signal = (vw * value + (1 - vw) * quality).where(value != 0.0)  # NaN when no data at all
         sector_map = {s: (i.sector or "NA") for s, i in ctx.instruments.items()}
         return cross_sectional_weights(
             signal, ctx.universe_mask,

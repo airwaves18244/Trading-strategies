@@ -25,7 +25,8 @@ def _discover() -> dict[str, type[Strategy]]:
 
     def collect(cls: type[Strategy]) -> None:
         for sub in cls.__subclasses__():
-            if getattr(sub, "key", None) and not getattr(sub, "abstract", False):
+            if (getattr(sub, "key", None) and not getattr(sub, "abstract", False)
+                    and sub.__module__.startswith("qbt.strategies.")):
                 if sub.key in reg and reg[sub.key] is not sub:
                     raise RuntimeError(f"Duplicate strategy key '{sub.key}': "
                                        f"{reg[sub.key].__module__} vs {sub.__module__}")

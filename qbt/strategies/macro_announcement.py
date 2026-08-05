@@ -33,6 +33,8 @@ class MacroAnnouncement(Strategy):
         w = pd.DataFrame(0.0, index=ctx.calendar, columns=ctx.symbols)
         target = ctx.symbols[0]  # index-proxy instrument = first universe symbol
         for t in ts[sel]:
+            if not len(ctx.calendar) or t > ctx.calendar[-1]:
+                continue  # scheduled beyond data end
             pos = ctx.calendar.searchsorted(t, side="left")
             lo = max(0, pos - self.p["days_before"])
             hi = min(len(ctx.calendar), pos + self.p["days_after"] + 1)

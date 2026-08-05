@@ -54,10 +54,23 @@ class DataContext:
         if freq == "D":
             return self.calendar
         naive = self.calendar.tz_convert("UTC").tz_localize(None)
-        key = {"W": naive.to_period("W"), "ME": naive.to_period("M"),
-               "QE": naive.to_period("Q")}[freq]
-        last = pd.Series(self.calendar, index=key).groupby(level=0).max()
-        return pd.DatetimeIndex(last.values, tz="UTC")
+        periods = {"W": naive.to_period("W"), "ME": naive.to_period("M"),
+                   "QE": naive.to_period("Q")}[freq]
+        last = pd.Series(self.calendar, index=periods).groupby(level=0).max()
+        out = pd.DatetimeIndex(last.values, tz="UTC")
+        # Drop the trailing INCOMPLETE period: if more business days of the last
+        # period exist beyond the calendar end (data cut mid-period), its "last
+        # trading day" isn't known yet. Keeps slice(t) consistent with the full
+        # run — the look-ahead harness depends on this.
+        if len(out):
+            end_naive = naive[-1]
+            nxt = end_naive + pd.offsets.BDay(1)
+            same_period = {"W": nxt.to_period("W") == periods[-1],
+                           "ME": nxt.to_period("M") == periods[-1],
+                           "QE": nxt.to_period("Q") == periods[-1]}[freq]
+            if same_period:
+                out = out[:-1]
+        return out
 
     def slice(self, end: pd.Timestamp) -> "DataContext":
         """Context truncated to <= end. THE mechanism behind assert_no_lookahead."""

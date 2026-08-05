@@ -24,9 +24,13 @@ def drawdown_periods(equity: pd.Series, top_n: int = 10) -> list[dict]:
     in_dd = False
     start = trough = None
     depth = 0.0
+    prev_ts = dd.index[0]
     for ts, v in dd.items():
         if v < 0 and not in_dd:
-            in_dd, start, trough, depth = True, ts, ts, v
+            # duration convention: from the PEAK (last day at the high) to recovery
+            in_dd, start, trough, depth = True, prev_ts, ts, v
+        if not in_dd:
+            prev_ts = ts
         elif in_dd:
             if v < depth:
                 depth, trough = v, ts

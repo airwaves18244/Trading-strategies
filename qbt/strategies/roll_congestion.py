@@ -39,6 +39,8 @@ class RollCongestion(Strategy):
                 continue
             start = pd.to_datetime(rolls.at[i, "roll_start"], utc=True)
             end = pd.to_datetime(rolls.at[i, "roll_end"], utc=True)
+            if not len(ctx.calendar) or start > ctx.calendar[-1]:
+                continue  # event beyond data end: clamping would leak the future
             i0 = max(0, ctx.calendar.searchsorted(start) - self.p["pre_days"])
             i1 = min(len(ctx.calendar), ctx.calendar.searchsorted(end, side="right"))
             # short the front (roll flow sells front): negative on the continuous proxy

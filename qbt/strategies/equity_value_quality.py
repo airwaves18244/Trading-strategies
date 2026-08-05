@@ -46,8 +46,9 @@ class EquityValueQuality(Strategy):
         book = self._metric_frame(ev, "book", ctx)
         gp = self._metric_frame(ev, "gross_profit", ctx)
         px = ctx.close
-        value = zscore_xs(eps / px).fillna(0.0) * 0.5 + zscore_xs(book / px).fillna(0.0) * 0.5
-        quality = (zscore_xs(gp / book.replace(0, np.nan)).fillna(0.0)
+        value = (zscore_xs(eps / px, min_names=2).fillna(0.0) * 0.5
+                 + zscore_xs(book / px, min_names=2).fillna(0.0) * 0.5)
+        quality = (zscore_xs(gp / book.replace(0, np.nan), min_names=2).fillna(0.0)
                    if gp.notna().any().any() else value * 0.0)
         vw = self.p["value_weight"]
         signal = (vw * value + (1 - vw) * quality).where(value != 0.0)  # NaN when no data at all

@@ -1,0 +1,3 @@
+# RVI futures curve arrives via vol_futures_curve CSV; proxy instrument for PnL
+type: static
+symbols: [MOEX:RVI]

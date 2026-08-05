@@ -1,0 +1,4 @@
+# FORTS continuous roots (built via qbt.data.futures.build_continuous)
+type: static
+futures: true
+symbols: [MOEX:RTS, MOEX:MIX, MOEX:Si, MOEX:Eu, MOEX:CNY, MOEX:BR, MOEX:NG, MOEX:GOLD, MOEX:SILV, MOEX:SBRF, MOEX:GAZR]

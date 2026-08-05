@@ -1,0 +1,3 @@
+# Index-level instruments (benchmark/panic/TOM/overlay strategies use symbol[0])
+type: static
+symbols: [MOEX:IMOEX, MOEX:RTSI]

@@ -52,3 +52,11 @@ class Settings(BaseSettings):
 
 
 __all__ = ["Settings"]
+
+
+def get_settings() -> Settings:
+    """Convenience accessor; constructs fresh (see class docstring)."""
+    return Settings()
+
+
+__all__ = ["Settings", "get_settings"]

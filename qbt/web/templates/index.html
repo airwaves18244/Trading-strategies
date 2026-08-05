@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>qbt — backtest terminal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/styles.css">
+<script src="/static/vendor/echarts.min.js"></script>
+<script defer src="/static/vendor/alpine.min.js"></script>
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</head>
+<body x-data="terminal()" x-init="init()">
+<header>
+  <span class="logo">qbt</span>
+  <span class="sub">MOEX backtest terminal</span>
+  <span class="runner-badge">engine: {{ runner }}</span>
+  <span class="status" x-text="statusLine"></span>
+</header>
+
+<main>
+  <!-- LEFT: strategy picker + params -->
+  <aside class="left">
+    <input class="search" type="text" placeholder="search strategies…" x-model="search">
+    <div class="strat-list">
+      <template x-for="grp in groupedStrategies" :key="grp.category">
+        <div>
+          <div class="cat" x-text="grp.category"></div>
+          <template x-for="s in grp.items" :key="s.key">
+            <div class="strat" :class="{active: sel && sel.key===s.key}" @click="select(s)">
+              <span x-text="s.name"></span>
+              <span class="badge" :class="'g'+s.group" x-text="s.group"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <div class="form" x-show="sel">
+      <h3 x-text="sel?.name"></h3>
+      <p class="desc" x-text="sel?.description"></p>
+      <div x-show="sel?.data_required" class="warn">
+        needs data: <span x-text="sel?.data_requirements.join(', ')"></span>
+        (put CSV into <code>data/events/&lt;schema&gt;.csv</code>)
+      </div>
+      <template x-for="p in sel?.params || []" :key="p.name">
+        <label class="param">
+          <span :title="p.doc + (p.source ? ' ['+p.source+']' : '')" x-text="p.name"></span>
+          <template x-if="p.choices">
+            <select x-model="form.params[p.name]">
+              <template x-for="c in p.choices"><option :value="c" x-text="c"></option></template>
+            </select>
+          </template>
+          <template x-if="!p.choices">
+            <input type="text" x-model="form.params[p.name]"
+                   :placeholder="p.low!==null ? p.low+' … '+p.high : ''">
+          </template>
+        </label>
+      </template>
+      <label class="param"><span>universe</span>
+        <select x-model="form.universe">
+          <template x-for="u in universes"><option :value="u" x-text="u"></option></template>
+        </select>
+      </label>
+      <div class="row2">
+        <label class="param"><span>start</span><input type="date" x-model="form.start"></label>
+        <label class="param"><span>end</span><input type="date" x-model="form.end"></label>
+      </div>
+      <div class="row2">
+        <label class="param"><span>costs</span>
+          <select x-model="form.cost_preset"><option>moex_equity</option><option>forts</option></select></label>
+        <label class="param"><span>lag</span><input type="number" min="0" max="3" x-model.number="form.execution_lag"></label>
+      </div>
+      <div class="row2">
+        <label class="param"><span>overlay</span>
+          <select x-model="form.overlay"><option value="">none</option><option value="vol_target">vol_target</option></select></label>
+        <label class="param"><span>vol target</span><input type="text" x-model="form.vol_target" placeholder="0.10"></label>
+      </div>
+      <button class="run" @click="run()" x-text="running ? 'running… '+Math.round(progress*100)+'%' : 'RUN BACKTEST'"
+              :disabled="running"></button>
+      <details class="sweep-box">
+        <summary>parameter sweep</summary>
+        <label class="param"><span>param 1</span>
+          <input type="text" x-model="sweepCfg.p1" placeholder="name=lo:hi:step"></label>
+        <label class="param"><span>param 2</span>
+          <input type="text" x-model="sweepCfg.p2" placeholder="optional"></label>
+        <button class="run secondary" @click="runSweep()" :disabled="running">RUN SWEEP</button>
+      </details>
+    </div>
+
+    <div class="history">
+      <div class="cat">history</div>
+      <template x-for="r in runs.slice(0,20)" :key="r.run_id">
+        <div class="hist-row" :class="{active: r.run_id===currentRunId}" @click="loadRun(r)">
+          <span x-text="r.strategy_key"></span>
+          <span class="dim" x-text="r.state"></span>
+        </div>
+      </template>
+    </div>
+  </aside>
+
+  <!-- CENTER: charts -->
+  <section class="center">
+    <nav class="tabs">
+      <template x-for="t in ['Equity','Drawdown','Chart','Sweep']">
+        <button :class="{active: tab===t}" @click="tab=t; renderCurrent()" x-text="t"></button>
+      </template>
+    </nav>
+    <div id="chart-main" class="chart"></div>
+    <div class="error" x-show="error" x-text="error"></div>
+  </section>
+
+  <!-- RIGHT: results -->
+  <aside class="right">
+    <nav class="tabs small">
+      <template x-for="t in ['Summary','Years','Costs','Trades','Doc','Data']">
+        <button :class="{active: rtab===t}" @click="rtab=t; if(t==='Data') loadData()" x-text="t"></button>
+      </template>
+    </nav>
+
+    <div x-show="rtab==='Summary'" class="pane">
+      <template x-for="[k,v] in metricRows" :key="k">
+        <div class="metric"><span x-text="k"></span><b x-text="fmt(k,v)"></b></div>
+      </template>
+    </div>
+
+    <div x-show="rtab==='Years'" class="pane">
+      <table><thead><tr><th>period</th><th>gross</th><th>net</th><th>sharpe</th><th>maxDD</th></tr></thead>
+      <tbody><template x-for="r in result?.per_year || []">
+        <tr :class="{split: (''+r.period).startsWith('pre')||(''+r.period).startsWith('post')}">
+          <td x-text="r.period"></td><td x-text="pct(r.gross)"></td><td x-text="pct(r.net)"></td>
+          <td x-text="num(r.sharpe_net)"></td><td x-text="pct(r.max_dd)"></td>
+        </tr></template></tbody></table>
+    </div>
+
+    <div x-show="rtab==='Costs'" class="pane">
+      <template x-for="[k,v] in Object.entries(result?.costs_total || {})">
+        <div class="metric"><span x-text="k"></span><b x-text="pct(v)"></b></div>
+      </template>
+      <div class="metric"><span>n_trades</span><b x-text="result?.n_trades"></b></div>
+    </div>
+
+    <div x-show="rtab==='Trades'" class="pane">
+      <button class="mini" @click="exportTrades()">export CSV</button>
+      <table><thead><tr><th @click="sortTrades('ts')">ts</th><th @click="sortTrades('symbol')">sym</th>
+        <th>side</th><th @click="sortTrades('pnl')">pnl</th><th>reason</th></tr></thead>
+      <tbody><template x-for="(t,i) in trades.slice(0,300)" :key="i">
+        <tr><td x-text="(t.ts||'').slice(0,10)"></td><td x-text="short(t.symbol)"></td>
+        <td x-text="t.side>0?'+':'−'"></td><td :class="{neg:t.pnl<0,pos:t.pnl>0}" x-text="num(t.pnl)"></td>
+        <td x-text="t.reason"></td></tr></template></tbody></table>
+    </div>
+
+    <div x-show="rtab==='Doc'" class="pane doc" x-html="docHtml"></div>
+
+    <div x-show="rtab==='Data'" class="pane">
+      <div class="cat">providers</div>
+      <template x-for="h in health"><div class="metric">
+        <span x-text="h.provider"></span><b :class="h.ok?'pos':'neg'" x-text="h.ok?'ok':h.detail"></b></div></template>
+      <div class="cat">cache coverage</div>
+      <table><thead><tr><th>symbol</th><th>freq</th><th>from</th><th>to</th></tr></thead>
+      <tbody><template x-for="c in coverage.slice(0,200)">
+        <tr><td x-text="short(c.symbol)"></td><td x-text="c.freq"></td>
+        <td x-text="(c.first_ts||'').slice(0,10)"></td><td x-text="(c.last_ts||'').slice(0,10)"></td></tr>
+      </template></tbody></table>
+      <div class="cat">pull data</div>
+      <label class="param"><span>universe</span>
+        <select x-model="ensureCfg.universe"><template x-for="u in universes"><option :value="u" x-text="u"></option></template></select></label>
+      <label class="param"><span>start</span><input type="date" x-model="ensureCfg.start"></label>
+      <button class="run secondary" @click="ensure()">PULL (moex_iss)</button>
+      <div class="dim" x-text="ensureStatus"></div>
+    </div>
+  </aside>
+</main>
+</body>
+</html>

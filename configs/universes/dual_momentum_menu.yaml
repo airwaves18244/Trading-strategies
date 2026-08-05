@@ -1,0 +1,3 @@
+# [risk assets..., defensive(last)] per dual_momentum convention
+type: static
+symbols: [MOEX:IMOEX, MOEX:GOLD, MOEX:RGBI]

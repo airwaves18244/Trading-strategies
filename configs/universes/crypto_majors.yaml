@@ -1,0 +1,3 @@
+# via FileProvider imports (Binance/other CSV) + funding_rates CSV
+type: static
+symbols: [CRYPTO:BTCUSDT, CRYPTO:ETHUSDT]

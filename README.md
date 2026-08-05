@@ -1,4 +1,42 @@
-# Trading Strategies — Research Corpus
+# Trading Strategies — Research Corpus & Backtest Terminal
+
+## qbt — the backtest terminal
+
+All 43 documented strategies are implemented as parameterized, modifiable code in
+[`qbt/strategies/`](qbt/strategies/) (one file each, auto-registered), backed by a
+vectorized weights engine + an order engine with stops/targets, realistic cost
+models, a look-ahead validation harness, and a local web terminal.
+
+```bash
+pip install -e ".[dev]"
+cp .env.example .env          # add QBT_FINAM_SECRET / QBT_ALGOPACK_TOKEN (optional)
+
+qbt serve --fake              # try the UI instantly on a canned engine
+qbt data ensure --universe moex_liquid --start 2015-01-01   # pull free MOEX ISS history
+qbt data ensure --universe forts_core --start 2015-01-01
+qbt serve                     # real engine at http://127.0.0.1:8000
+
+qbt run ts_momentum -p per_asset_target=0.15 --start 2018-01-01   # CLI backtest
+qbt sweep breakout_channel -p channel=20:100:10                    # parameter sweep
+qbt new-strategy my_idea      # scaffold strategy #44
+```
+
+Data sources: **MOEX ISS** (free, no key — bars, PIT index membership, dividends,
+futures chains), **Finam Trade API** and **MOEX ALGOPACK** (your keys via `.env`;
+endpoints marked VERIFY-ON-WINDOWS need `qbt dev record-fixtures` on your machine),
+plus CSV/parquet import for event data (`qbt/data/schemas.py` documents the 14
+schemas — deals, earnings, funding rates, vol curves…; drop files into `data/events/`).
+
+Strategy groups: **A** (26) run on MOEX data out of the box; **B** (13) need a CSV
+event schema and ship with synthetic fixtures so they run green immediately;
+**C** (4) are data-gated research implementations. Architecture, workstream map and
+risk decisions: [`docs/architecture.md`](docs/architecture.md). Tests: `pytest` —
+103 checks including a registry-wide look-ahead harness and cost-monotonicity on
+every strategy.
+
+---
+
+## The research corpus
 
 Research on **43 non-HFT trading strategies** across 10 categories, built as the foundation for a subsequent backtesting program. Every strategy included has a real economic rationale (risk premium, behavioral effect, structural flow, or market friction) — strategies defined purely by technical-indicator mechanics were excluded by design.
 

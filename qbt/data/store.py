@@ -107,7 +107,7 @@ class ParquetBarStore:
         path = self._path(symbol, freq)
         if path.exists():
             existing_ts = pd.to_datetime(pd.read_parquet(path, columns=["ts"])["ts"], utc=True)
-            existing_days = set(existing_ts.normalize())
+            existing_days = set(existing_ts.dt.normalize())
         else:
             existing_days = set()
 

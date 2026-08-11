@@ -149,7 +149,11 @@ class RealRunner:
         cache = Path(self.settings.cache_dir)
         if not (cache / "manifest.sqlite").exists():
             return []
-        return Manifest(cache / "manifest.sqlite").all_coverage_dicts()
+        return [
+            {"symbol": c.symbol, "freq": str(c.freq), "first_ts": str(c.first_ts),
+             "last_ts": str(c.last_ts), "rows": c.rows, "updated_at": str(c.updated_at)}
+            for c in Manifest(cache / "manifest.sqlite").all_coverage()
+        ]
 
     def data_health(self) -> list[dict[str, Any]]:
         from qbt.data.providers import make_provider
@@ -180,11 +184,15 @@ class RealRunner:
             calendar_fn=lambda s, e: trading_days(s, e, market="forts" if futures else "stock"),
         )
         end = req.end or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        result = service.ensure(symbols, Freq(req.freq),
-                                pd.Timestamp(req.start, tz="UTC").to_pydatetime(),
-                                pd.Timestamp(end, tz="UTC").to_pydatetime(),
-                                req.provider, progress_cb=progress_cb)
-        return {"symbols": symbols, "provider": req.provider, "detail": result}
+        # DataService reports (done, total); the job registry wants a 0..1 fraction.
+        cb = None if progress_cb is None else (
+            lambda done, total: progress_cb(done / total if total else 1.0))
+        service.ensure(symbols, Freq(req.freq),
+                       pd.Timestamp(req.start, tz="UTC").to_pydatetime(),
+                       pd.Timestamp(end, tz="UTC").to_pydatetime(),
+                       req.provider, progress_cb=cb)
+        cov = [c for c in self.data_status() if c.get("symbol") in set(symbols)]
+        return {"symbols": symbols, "provider": req.provider, "coverage": cov}
 
     def bars(self, symbol: str, freq: str, start: str, end: str) -> list[dict[str, Any]]:
         from qbt.core.types import BarRequest

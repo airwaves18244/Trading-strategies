@@ -368,7 +368,7 @@ class FakeRunner:
                 "low": round(float(r.low), 4), "close": round(float(r.close), 4),
                 "volume": round(float(r.volume), 1),
             }
-            for ts, r in ohlcv.itertuples(name="Row", index=True)
+            for ts, r in ohlcv.iterrows()
         ]
 
 

@@ -80,10 +80,13 @@ def summary(
         if len(dw):
             dw.iloc[0] = w.iloc[0]
         out["turnover_ann"] = float(0.5 * dw.abs().sum(axis=1).mean() * ppy)
-    if trades is not None and len(trades) and "pnl" in trades:
-        closed = trades.dropna(subset=["pnl"])
-        out["n_trades"] = float(len(closed))
+    if trades is not None and len(trades):
+        # weights engine emits rebalance rows (no per-trade pnl); orders engine
+        # emits entry/exit pairs with pnl on the exit row.
+        out["n_trades"] = float(len(trades))
+        closed = trades.dropna(subset=["pnl"]) if "pnl" in trades else trades.iloc[:0]
         if len(closed):
+            out["n_closed_trades"] = float(len(closed))
             out["trade_hit_rate"] = float((closed["pnl"] > 0).mean())
     yearly = r.groupby(r.index.year).apply(lambda x: float((1 + x).prod() - 1)) if len(r) else pd.Series(dtype=float)
     if len(yearly):

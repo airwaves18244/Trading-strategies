@@ -49,8 +49,6 @@ for s in D["strategies"]:
     s["family_ru"] = FAMILY_RU.get(FAMILY.get(s["key"], ""), "")
     s["corpus"] = CORPUS.get(s["key"])
 
-D["benchmark"] = {"name": "IMOEX", "final": 4.14, "cagr": 0.144, "vol": 0.333,
-                  "sharpe": 0.59, "max_dd": -0.714}
 payload = json.dumps(D, ensure_ascii=False, separators=(",", ":"))
 
 HTML = """<title>qbt — прогон стратегий на MOEX, 2015–2025</title>
@@ -229,6 +227,18 @@ tr.split td:first-child { color: var(--accent); }
   font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 ul.clean { margin: 0 0 14px; padding-left: 18px; }
+ol.plan { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+ol.plan li { display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: start;
+  background: var(--card); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0; padding: 16px 18px; }
+ol.plan .step { font-family: var(--mono); font-size: 20px; color: var(--accent); line-height: 1.1; }
+ol.plan h3 { margin-bottom: 4px; }
+ol.plan p { font-size: 14.5px; color: var(--ink-2); margin-bottom: 8px; }
+ol.plan p:last-child { margin-bottom: 0; }
+ol.plan code { font-family: var(--mono); font-size: 12.5px; background: var(--paper);
+  border: 1px solid var(--rule-soft); border-radius: 3px; padding: 2px 6px; display: inline-block; }
+.plan-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 10px; }
 ul.clean li { margin-bottom: 7px; }
 footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13px; color: var(--ink-2); }
 </style>
@@ -238,12 +248,12 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13px; 
   <p class="eyebrow">qbt · бэктест-терминал · прогон на живых данных</p>
   <h1>14 стратегий из корпуса, проверенные на MOEX 2015–2025</h1>
   <p class="lede">Данные скачаны с MOEX ISS, косты и лаг исполнения включены, каждая стратегия
-  прошла проверку на подглядывание в будущее. Главный вывод неудобный: по коэффициенту Шарпа
-  тринадцать из четырнадцати проиграли простой покупке индекса, а одна теряет деньги ровно так,
-  как предсказывает исследовательский корпус.</p>
+  прошла проверку на подглядывание в будущее. Вывод неудобный: планка — не ноль, а индекс полной
+  доходности MCFTR с коэффициентом Шарпа <span class="num">0,63</span>. Её перешагнула одна
+  стратегия из четырнадцати.</p>
   <dl class="prov">
     <div><dt>Источник</dt><dd>MOEX ISS</dd></div>
-    <div><dt>Инструменты</dt><dd>28 акций + IMOEX</dd></div>
+    <div><dt>Инструменты</dt><dd>28 акций + MCFTR</dd></div>
     <div><dt>Баров на бумагу</dt><dd>2 778</dd></div>
     <div><dt>Период</dt><dd>2015-06 → 2025-12</dd></div>
     <div><dt>Косты</dt><dd>4 бп + 3 бп спред</dd></div>
@@ -256,8 +266,9 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13px; 
     <p class="sec-label">Итог прогона</p>
     <h2>Планка — не ноль, а индекс</h2>
     <p class="note">Сплошная полоса — фактический нетто-Sharpe на MOEX. Пунктирная рамка — диапазон,
-    который корпус предсказывал для этой стратегии (SUMMARY.md). Вертикальная линия — Sharpe самого
-    IMOEX за тот же период: <span class="num">0,59</span>. Её пересекает только одна стратегия.
+    который корпус предсказывал для этой стратегии (SUMMARY.md). Вертикальная линия — Sharpe индекса
+    полной доходности MCFTR за тот же период: <span class="num">0,63</span>. Сравнение именно с ним
+    корректно: стратегии тоже считаются на рядах с реинвестированными дивидендами.
     Наведите на строку, чтобы увидеть полный набор метрик.</p>
   </div>
   <div class="panel">
@@ -267,7 +278,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13px; 
       <span><i style="background:var(--pos)"></i>Sharpe &gt; 0</span>
       <span><i style="background:var(--neg)"></i>Sharpe &lt; 0</span>
       <span><i class="dash"></i>прогноз корпуса</span>
-      <span><i style="width:2px;height:12px;background:var(--accent)"></i>IMOEX, Sharpe 0,59</span>
+      <span><i style="width:2px;height:12px;background:var(--accent)"></i>MCFTR, Sharpe 0,63</span>
     </div>
   </div>
 </section>
@@ -276,21 +287,21 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13px; 
   <div class="head">
     <p class="sec-label">Лучшая по Шарпу среди акций</p>
     <h2>Кросс-секционный моментум против «просто купи индекс»</h2>
-    <p class="note">Стратегия глаже — просадка на 19 пунктов мельче. Но по конечному
-    капиталу и по Шарпу она уступает индексу: премия за отбор бумаг не перекрыла того, что
-    лонг-онли книга держит меньше рыночного риска.</p>
+    <p class="note">Волатильность у стратегии и у индекса практически одинаковая — 23,6 % против
+    23,4 %, — как и глубина просадки. А доходность ниже: 2,51× против 3,50×. За десять лет отбор
+    бумаг не дал ничего сверх того, что можно было получить одной покупкой MCFTR.</p>
   </div>
   <div class="grid-2">
     <div class="panel">
       <figure>
         <svg id="eq-chart" viewBox="0 0 720 340" role="img"
              aria-label="Кривая капитала стратегии против индекса IMOEX, 2015–2025"></svg>
-        <figcaption>Нетто-капитал стратегии против IMOEX (обе линии от 1,00 на старте).
+        <figcaption>Нетто-капитал стратегии против MCFTR (обе линии от 1,00 на старте).
         Ниже — просадка стратегии на той же оси времени.</figcaption>
       </figure>
       <div class="legend">
         <span><i style="background:var(--pos)"></i>моментум, нетто</span>
-        <span><i style="background:var(--ref)"></i>IMOEX (ориентир)</span>
+        <span><i style="background:var(--ref)"></i>MCFTR (ориентир)</span>
       </div>
     </div>
     <div class="panel">
@@ -362,6 +373,39 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13px; 
 
 <section>
   <div class="head">
+    <p class="sec-label">Итог</p>
+    <h2>Что мы теперь знаем</h2>
+  </div>
+  <div class="col">
+    <ul class="clean">
+      <li><strong>Планка выше, чем кажется.</strong> Индекс полной доходности MCFTR за 10,5 лет дал
+      3,50× при Шарпе 0,63. Тринадцать из четырнадцати проверенных стратегий этого не достигли —
+      включая ту, что по Шарпу лучшая среди акционных.</li>
+      <li><strong>Издержки решают знак, а не величину.</strong> При обороте 39× в год краткосрочный
+      разворот превращает рубль в десять копеек. Между «работает» и «разоряет» здесь стоят
+      семь базисных пунктов на сделку.</li>
+      <li><strong>Корпус предсказал направление, но не уровень.</strong> Прогнозные диапазоны
+      совпали по знаку почти везде, а фактические значения систематически ниже — ровно тот
+      посттиражный спад, о котором предупреждает <em>research/01-landscape.md</em>.</li>
+      <li><strong>Инфраструктура ловит ошибки.</strong> Харнесс на подглядывание в будущее нашёл
+      реальную утечку в одной стратегии, а сборка этой страницы — две ошибки в сравнении с
+      бенчмарком. Числа получены не с первого раза, и это нормальный ход измерения.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="head">
+    <p class="sec-label">Дальше</p>
+    <h2>План: три шага до чисел, которым можно верить</h2>
+    <p class="note">Порядок не случаен. Пока не закрыт первый пункт, любые кросс-секционные
+    результаты смещены вверх, и оптимизировать параметры поверх смещения бессмысленно.</p>
+  </div>
+  <ol class="plan" id="plan"></ol>
+</section>
+
+<section>
+  <div class="head">
     <p class="sec-label">Оговорки</p>
     <h2>Чего эти числа не доказывают</h2>
   </div>
@@ -378,7 +422,8 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13px; 
       ограничен, поэтому кросс-секционные стратегии считались лонг-онли — это ближе к реальности,
       но убирает часть теоретической премии.</li>
       <li><strong>Дивиденды учтены, налоги — нет.</strong> Total-return ряды строятся из дивидендов
-      ISS; налог и проскальзывание сверх спреда в модель не заложены.</li>
+      ISS, поэтому сравнение с MCFTR корректно. Налог на дивиденды и проскальзывание сверх спреда
+      в модель не заложены — оба играют против стратегии, не за неё.</li>
     </ul>
     <p>Всё, что нужно, чтобы это исправить, в терминале уже есть: PIT-составы индекса, история
     делистингов и калибровка спреда по ALGOPACK — вопрос следующего прогона, а не переписывания движка.</p>
@@ -591,6 +636,38 @@ function lineChart(svgId, cfg) {
   });
 })();
 
+/* ---------- plan ---------- */
+(function () {
+  const steps = [
+    { h: "Убрать выживший юниверс",
+      p: "Каждое кросс-секционное число на этой странице смещено вверх, потому что в выборке нет "
+       + "ушедших с биржи бумаг. В терминале уже есть всё нужное: ISS отдаёт состав индекса на "
+       + "произвольную дату, а движок умеет применять доходность делистинга в последний торговый день.",
+      c: "IndexUniverse из PIT-составов + delisting_return_pct в конфиг",
+      m: ["эффект: числа поедут вниз", "разблокирует: доверие ко всей таблице", "объём: один прогон"] },
+    { h: "Запустить фьючерсную ветку",
+      p: "Самые приоритетные стратегии корпуса — трендследование и carry — до сих пор не проверены: "
+       + "им нужны непрерывные ряды FORTS. Роллер по открытому интересу написан и покрыт тестами, "
+       + "не хватает только загрузки цепочек.",
+      c: "qbt data ensure --universe forts_core",
+      m: ["разблокирует: 9 стратегий", "среди них: ts_momentum, trend_plus_carry", "объём: загрузка + прогон"] },
+    { h: "Измерить спред вместо того, чтобы его угадывать",
+      p: "Сейчас в модели костов стоит половина спреда в 3 базисных пункта — предположение. "
+       + "ALGOPACK отдаёт фактические спреды по пятиминуткам, и именно от этого числа зависит, "
+       + "живы ли разворотные стратегии и стат-арбитраж вообще.",
+      c: "AlgopackSpreadCostModel по данным obstats",
+      m: ["нужен ключ ALGOPACK", "решает судьбу: 4 стратегии", "объём: калибровка"] },
+  ];
+  const host = document.getElementById("plan");
+  steps.forEach((s, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="step">${i + 1}</div>
+      <div><h3>${s.h}</h3><p>${s.p}</p><code>${s.c}</code>
+      <div class="plan-meta">${s.m.map(x => `<span>${x}</span>`).join("")}</div></div>`;
+    host.appendChild(li);
+  });
+})();
+
 /* ---------- benchmark tiles ---------- */
 (function () {
   const m = DATA.strategies.find(s => s.key === "xs_equity_momentum");
@@ -606,7 +683,7 @@ function lineChart(svgId, cfg) {
   rows.forEach(([k, a, bb]) => {
     const d = document.createElement("div");
     d.className = "tile";
-    d.innerHTML = `<dt>${k}</dt><dd>${a}</dd><div class="sub">IMOEX: <span class="num">${bb}</span></div>`;
+    d.innerHTML = `<dt>${k}</dt><dd>${a}</dd><div class="sub">MCFTR: <span class="num">${bb}</span></div>`;
     host.appendChild(d);
   });
 })();

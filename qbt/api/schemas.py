@@ -38,7 +38,14 @@ class RunRequest(BaseModel):
 
 
 class RunStatus(BaseModel):
-    """Job status polled by the UI every ~1s while a run/sweep is in flight."""
+    """Job status polled by the UI every ~1s while a run/sweep is in flight.
+
+    API v2 (docs/ui-upgrade.md section 2): GET /api/runs rows carry these plus
+    the run-identifying fields below, merged into status.json by jobs.py. Not
+    used as a FastAPI response_model (routes return raw dicts so unrelated job
+    kinds -- sweep/ensure -- aren't forced through this shape); kept here as
+    the documented shape of a "run" row.
+    """
 
     run_id: str
     state: Literal["queued", "running", "done", "error"]
@@ -46,8 +53,45 @@ class RunStatus(BaseModel):
     error: str | None = None
     kind: str = "run"
     strategy_key: str | None = None
+    universe: str | None = None
+    start: str | None = None
+    end: str | None = None
+    params: dict[str, Any] | None = None
+    label: str = ""
+    starred: bool = False
+    summary: dict[str, float | None] | None = None
     created_at: str | None = None
     updated_at: str | None = None
+
+
+class RunPatchRequest(BaseModel):
+    """PATCH /api/runs/{run_id} body. Both fields optional; only fields the
+    caller actually set are applied (see `exclude_unset` in app.py) so a PATCH
+    with just `starred` doesn't clobber an existing label."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = None
+    starred: bool | None = None
+
+
+class DeleteResponse(BaseModel):
+    ok: bool = True
+
+
+class CompareRunItem(BaseModel):
+    """One run's slice of GET /api/compare -- meta/metrics straight from
+    BacktestResult, equity downsampled to <=1500 {time,value} points."""
+
+    run_id: str
+    label: str = ""
+    meta: dict[str, Any]
+    metrics: dict[str, Any]
+    equity: list[dict[str, Any]]
+
+
+class CompareResponse(BaseModel):
+    runs: list[CompareRunItem]
 
 
 class SweepRequest(RunRequest):
@@ -75,4 +119,5 @@ class RunSubmitResponse(BaseModel):
 
 __all__ = [
     "RunRequest", "RunStatus", "SweepRequest", "DataEnsureRequest", "RunSubmitResponse",
+    "RunPatchRequest", "DeleteResponse", "CompareRunItem", "CompareResponse",
 ]

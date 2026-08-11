@@ -7,6 +7,7 @@ survives restarts (done runs are re-discovered from disk).
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 import traceback
 import uuid
@@ -18,6 +19,10 @@ from typing import Any, Callable
 import pandas as pd
 
 from qbt.engine.result import BacktestResult
+
+
+class RunningJobError(Exception):
+    """Raised by JobRegistry.delete() when the job is still queued/running."""
 
 
 def _now() -> str:
@@ -58,7 +63,12 @@ class JobRegistry:
         with self._lock:
             self._jobs[run_id] = {"run_id": run_id, "state": "queued", "progress": 0.0,
                                   "error": None, "kind": kind, "created_at": _now(),
-                                  "updated_at": _now(), **(meta or {})}
+                                  "updated_at": _now(),
+                                  # UI-editable / derived fields (section 2, API v2): default
+                                  # here so every job row -- not just "run" kind -- has them,
+                                  # then let explicit meta override if ever needed.
+                                  "label": "", "starred": False, "summary": None,
+                                  **(meta or {})}
             self._write_status(run_id)
 
         def progress(p: float) -> None:
@@ -69,13 +79,20 @@ class JobRegistry:
             try:
                 out = fn(run_id, progress)
                 d = self.runs_dir / run_id
+                done_fields: dict[str, Any] = {}
                 if isinstance(out, BacktestResult):
                     out.save(d)
+                    # API v2: merge a small summary into status.json on completion so
+                    # GET /api/runs can show a sharpe chip without loading the full result.
+                    m = out.metrics or {}
+                    done_fields["summary"] = {
+                        "sharpe": m.get("sharpe"), "cagr": m.get("cagr"), "max_dd": m.get("max_dd"),
+                    }
                 elif isinstance(out, pd.DataFrame):
                     out.to_parquet(d / "sweep.parquet")
                 elif out is not None:
                     (d / "output.json").write_text(json.dumps(out, default=str))
-                self._set(run_id, state="done", progress=1.0)
+                self._set(run_id, state="done", progress=1.0, **done_fields)
             except Exception as e:  # noqa: BLE001
                 self._set(run_id, state="error",
                           error=f"{type(e).__name__}: {e}",
@@ -95,3 +112,30 @@ class JobRegistry:
 
     def result_dir(self, run_id: str) -> Path:
         return self.runs_dir / run_id
+
+    def patch(self, run_id: str, **fields: Any) -> dict[str, Any]:
+        """Merge `fields` (e.g. label/starred) into status.json. Raises KeyError
+        for an unknown run_id -- app.py maps that to 404."""
+        with self._lock:
+            if run_id not in self._jobs:
+                raise KeyError(run_id)
+            self._jobs[run_id].update(fields, updated_at=_now())
+            self._write_status(run_id)
+            return dict(self._jobs[run_id])
+
+    def delete(self, run_id: str) -> None:
+        """Remove the run's status entry + on-disk runs/<run_id> dir.
+
+        Raises KeyError for an unknown run_id (-> 404) and RunningJobError if
+        the job is still queued/running (-> 409); app.py maps both.
+        """
+        with self._lock:
+            job = self._jobs.get(run_id)
+            if job is None:
+                raise KeyError(run_id)
+            if job.get("state") in ("queued", "running"):
+                raise RunningJobError(run_id)
+            del self._jobs[run_id]
+        d = self.runs_dir / run_id
+        if d.exists():
+            shutil.rmtree(d)

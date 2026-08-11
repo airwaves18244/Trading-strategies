@@ -313,9 +313,17 @@ class FakeRunner:
             sharpe = float(rets.mean() / rets.std() * np.sqrt(252)) if rets.std() > 0 else 0.0
             cagr = float(eq.iloc[-1] ** (252 / len(eq)) - 1)
             max_dd = float((eq / eq.cummax() - 1).min())
+            # IS/OOS split mirrors qbt.engine.sweep (docs/ui-upgrade.md section 1): first 70%
+            # of daily net returns = in-sample, last 30% = out-of-sample, Sharpe on each side.
+            # Deterministic (same `rets` path every call for the same request -- no re-roll).
+            split = max(1, int(len(rets) * 0.7))
+            is_r, oos_r = rets.iloc[:split], rets.iloc[split:]
+            sharpe_is = float(is_r.mean() / is_r.std() * np.sqrt(252)) if len(is_r) > 1 and is_r.std() > 0 else 0.0
+            sharpe_oos = float(oos_r.mean() / oos_r.std() * np.sqrt(252)) if len(oos_r) > 1 and oos_r.std() > 0 else 0.0
             row = dict(combo_params)
             row.update({"sharpe_net": round(sharpe, 3), "cagr": round(cagr, 4),
-                        "max_dd": round(max_dd, 4), "calmar": round(cagr / abs(max_dd), 3) if max_dd else 0.0})
+                        "max_dd": round(max_dd, 4), "calmar": round(cagr / abs(max_dd), 3) if max_dd else 0.0,
+                        "sharpe_is": round(sharpe_is, 3), "sharpe_oos": round(sharpe_oos, 3)})
             rows.append(row)
             if progress_cb is not None:
                 progress_cb((j + 1) / len(combos))

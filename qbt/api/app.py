@@ -9,14 +9,18 @@ import re
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
 
-from qbt.api.jobs import JobRegistry
-from qbt.api.schemas import DataEnsureRequest, RunRequest, RunSubmitResponse, SweepRequest
+from qbt.api.jobs import JobRegistry, RunningJobError
+from qbt.api.schemas import (
+    CompareResponse, CompareRunItem, DataEnsureRequest, DeleteResponse, RunPatchRequest,
+    RunRequest, RunSubmitResponse, SweepRequest,
+)
 from qbt.engine.result import BacktestResult
 
 _WEB = Path(__file__).resolve().parent.parent / "web"
@@ -40,6 +44,16 @@ def _strategy_metas() -> list[dict[str, Any]]:
             } for p in m.params],
         })
     return metas
+
+
+def _downsample(s: pd.Series, max_points: int) -> list[dict[str, Any]]:
+    """Same downsampling rule as BacktestResult.to_run_json's `ser()`, used for
+    GET /api/compare's equity series (kept local since result.py is WS-A's)."""
+    if len(s) > max_points:
+        idx = np.linspace(0, len(s) - 1, max_points).astype(int)
+        s = s.iloc[idx]
+    return [{"time": int(pd.Timestamp(t).timestamp()), "value": None if pd.isna(v) else float(v)}
+            for t, v in s.items()]
 
 
 def _extract_section(md_path: Path, header_prefix: str = "## 3.") -> str:
@@ -101,6 +115,8 @@ def create_app(runner: Any = "fake", runs_dir: Path | None = None) -> FastAPI:
     def submit_run(req: RunRequest) -> RunSubmitResponse:
         rid = jobs.submit("run", lambda run_id, cb: runner.run(req, run_id, cb),
                           meta={"strategy_key": req.strategy_key,
+                                "universe": req.universe, "start": req.start, "end": req.end,
+                                "params": req.params,
                                 "request": req.model_dump()})
         return RunSubmitResponse(run_id=rid)
 
@@ -115,6 +131,24 @@ def create_app(runner: Any = "fake", runs_dir: Path | None = None) -> FastAPI:
             raise HTTPException(404, "unknown run")
         return st
 
+    @app.patch("/api/runs/{run_id}")
+    def patch_run(run_id: str, body: RunPatchRequest) -> dict[str, Any]:
+        fields = body.model_dump(exclude_unset=True)
+        try:
+            return jobs.patch(run_id, **fields)
+        except KeyError:
+            raise HTTPException(404, "unknown run")
+
+    @app.delete("/api/runs/{run_id}", response_model=DeleteResponse)
+    def delete_run(run_id: str) -> DeleteResponse:
+        try:
+            jobs.delete(run_id)
+        except KeyError:
+            raise HTTPException(404, "unknown run")
+        except RunningJobError:
+            raise HTTPException(409, "cannot delete a queued/running run")
+        return DeleteResponse(ok=True)
+
     @app.get("/api/runs/{run_id}/result")
     def run_result(run_id: str, max_points: int = 3000) -> JSONResponse:
         st = jobs.status(run_id)
@@ -124,6 +158,29 @@ def create_app(runner: Any = "fake", runs_dir: Path | None = None) -> FastAPI:
             raise HTTPException(409, f"run is {st['state']}")
         res = BacktestResult.load(jobs.result_dir(run_id))
         return JSONResponse(res.to_run_json(max_points=max_points))
+
+    @app.get("/api/compare", response_model=CompareResponse)
+    def compare_runs(ids: str) -> CompareResponse:
+        id_list = [i for i in ids.split(",") if i]
+        if not (2 <= len(id_list) <= 6):
+            raise HTTPException(400, "ids must list 2..6 run ids, comma-separated")
+
+        missing = [i for i in id_list if jobs.status(i) is None]
+        if missing:
+            raise HTTPException(404, f"unknown run(s): {', '.join(missing)}")
+
+        items: list[CompareRunItem] = []
+        for rid in id_list:
+            st = jobs.status(rid)
+            if st.get("kind") != "run" or st.get("state") != "done":
+                raise HTTPException(400, f"run {rid} is not a completed backtest run")
+            res = BacktestResult.load(jobs.result_dir(rid))
+            items.append(CompareRunItem(
+                run_id=rid, label=st.get("label") or "",
+                meta=res.meta.__dict__, metrics=res.metrics,
+                equity=_downsample(res.equity.dropna(), 1500),
+            ))
+        return CompareResponse(runs=items)
 
     # ---------------- sweeps ----------------
 

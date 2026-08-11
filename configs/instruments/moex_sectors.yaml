@@ -1,0 +1,33 @@
+# Sector map for MOEX names (GICS-ish, hand-maintained).
+# Used by industry/sector-neutral strategies; unknown symbols fall back to "NA".
+MOEX:SBER: financials
+MOEX:SBERP: financials
+MOEX:VTBR: financials
+MOEX:MOEX: financials
+MOEX:AFKS: financials
+MOEX:GAZP: energy
+MOEX:LKOH: energy
+MOEX:ROSN: energy
+MOEX:NVTK: energy
+MOEX:TATN: energy
+MOEX:TATNP: energy
+MOEX:SNGS: energy
+MOEX:SNGSP: energy
+MOEX:GMKN: materials
+MOEX:CHMF: materials
+MOEX:NLMK: materials
+MOEX:MAGN: materials
+MOEX:ALRS: materials
+MOEX:PLZL: materials
+MOEX:RUAL: materials
+MOEX:PHOR: materials
+MOEX:MGNT: consumer
+MOEX:PIKK: consumer
+MOEX:MTSS: telecom
+MOEX:AFLT: industrials
+MOEX:IRAO: utilities
+MOEX:HYDR: utilities
+MOEX:FEES: utilities
+MOEX:IMOEX: index
+MOEX:RTSI: index
+MOEX:RGBI: bonds

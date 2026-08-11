@@ -35,12 +35,24 @@ def load_universe_config(name: str) -> dict[str, Any]:
     return yaml.safe_load(path.read_text()) or {}
 
 
+_SECTOR_FILE = Path(__file__).resolve().parents[2] / "configs" / "instruments" / "moex_sectors.yaml"
+
+
+def load_sectors() -> dict[str, str]:
+    """Symbol -> sector. Sector-neutral and industry strategies are inert without it."""
+    if not _SECTOR_FILE.exists():
+        return {}
+    return yaml.safe_load(_SECTOR_FILE.read_text()) or {}
+
+
 def _instruments_for(symbols: list[str], futures: bool) -> dict[str, Instrument]:
+    sectors = load_sectors()
     out = {}
     for s in symbols:
         ac = AssetClass.FUTURE if futures else (
             AssetClass.CRYPTO if s.startswith("CRYPTO:") else AssetClass.EQUITY)
         out[s] = Instrument(symbol=s, exchange=s.split(":")[0], asset_class=ac,
+                            sector=sectors.get(s), lot_size=1,
                             provider_symbols={"moex_iss": s.split(":")[-1]})
     return out
 

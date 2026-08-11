@@ -7,9 +7,20 @@ All 43 documented strategies are implemented as parameterized, modifiable code i
 vectorized weights engine + an order engine with stops/targets, realistic cost
 models, a look-ahead validation harness, and a local web terminal.
 
+**The terminal runs locally on your own machine** — it is a local web app, not a hosted
+service. Clone the repo, install, pull data, then open `http://127.0.0.1:8000` in the
+browser *on that same machine*.
+
 ```bash
+git clone -b claude/trading-strategies-research-qhrq6q \
+    https://github.com/airwaves18244/Trading-strategies.git
+cd Trading-strategies
+
+python -m venv .venv
+.venv\Scripts\activate        # Windows  (macOS/Linux: source .venv/bin/activate)
+
 pip install -e ".[dev]"
-cp .env.example .env          # add QBT_FINAM_SECRET / QBT_ALGOPACK_TOKEN (optional)
+copy .env.example .env        # add QBT_FINAM_SECRET / QBT_ALGOPACK_TOKEN (optional)
 
 qbt serve --fake              # try the UI instantly on a canned engine
 qbt data ensure --universe moex_liquid --start 2015-01-01   # pull free MOEX ISS history

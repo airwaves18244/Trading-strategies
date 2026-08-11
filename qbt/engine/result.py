@@ -74,7 +74,12 @@ class BacktestResult:
         for name, df in frames.items():
             df.to_parquet(path / f"{name}.parquet")
         (path / "meta.json").write_text(json.dumps(
-            {"meta": self.meta.__dict__, "metrics": self.metrics}, indent=2, default=str))
+            {"meta": self.meta.__dict__, "metrics": self.metrics,
+             # the parquet round-trip renames the series to "equity"; keep the
+             # benchmark's symbol so benchmark_stats.symbol survives a reload
+             "benchmark_symbol": (self.benchmark_equity.name or None)
+             if self.benchmark_equity is not None else None},
+            indent=2, default=str))
 
     @classmethod
     def load(cls, path: Path) -> "BacktestResult":
@@ -92,13 +97,19 @@ class BacktestResult:
             weights=rd("weights"), positions=rd("positions"), trades=rd("trades"),
             costs=rd("costs"), exposure=rd("exposure"), per_year=rd("per_year"),
             metrics=blob["metrics"], meta=RunMeta(**blob["meta"]),
-            benchmark_equity=pd.read_parquet(bench_p)["equity"] if bench_p.exists() else None,
+            benchmark_equity=pd.read_parquet(bench_p)["equity"].rename(blob.get("benchmark_symbol"))
+            if bench_p.exists() else None,
         )
 
     # ---------------- web contract ----------------
 
     def to_run_json(self, max_points: int = 3000) -> dict[str, Any]:
-        """The JSON the web terminal renders. Downsamples long series."""
+        """The JSON the web terminal renders (run.json v2). Downsamples long series.
+
+        v1 keys are byte-compatible; the v2 blocks are appended by
+        analytics.report.extend_run_json so both runners get them for free.
+        """
+        from qbt.analytics.report import extend_run_json
 
         def ser(s: pd.Series) -> list[dict[str, Any]]:
             if len(s) > max_points:
@@ -117,7 +128,7 @@ class BacktestResult:
             "equity_gross": ser((1 + self.returns_gross.fillna(0)).cumprod()),
             "drawdown": ser(dd),
             "benchmark": ser(self.benchmark_equity.dropna()) if self.benchmark_equity is not None else None,
-            "exposure": {c: ser(self.exposure[c]) for c in self.exposure.columns if c != "n_positions"},
+            "exposure": {c: ser(self.exposure[c]) for c in self.exposure.columns},
             "per_year": json.loads(self.per_year.to_json(orient="records")),
             "costs_total": {c: float(self.costs[c].sum()) for c in self.costs.columns},
             "trades": json.loads(
@@ -125,4 +136,4 @@ class BacktestResult:
             ) if len(self.trades) else [],
             "n_trades": int(len(self.trades)),
         }
-        return out
+        return extend_run_json(self, out)

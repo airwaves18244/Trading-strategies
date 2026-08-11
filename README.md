@@ -5,7 +5,11 @@
 All 43 documented strategies are implemented as parameterized, modifiable code in
 [`qbt/strategies/`](qbt/strategies/) (one file each, auto-registered), backed by a
 vectorized weights engine + an order engine with stops/targets, realistic cost
-models, a look-ahead validation harness, and a local web terminal.
+models, a look-ahead validation harness, and a local web terminal: equity vs
+benchmark with drawdown band, monthly-returns heatmap, rolling Sharpe/vol/beta,
+alpha/beta/IR vs MCFTR, per-symbol P&L attribution, trade stats, top-drawdown
+table, parameter sweeps with an in-sample/out-of-sample Sharpe split, and
+side-by-side comparison of saved runs (dark/light theme, keyboard-driven).
 
 **The terminal runs locally on your own machine** — it is a local web app, not a hosted
 service. Clone the repo, install, pull data, then open `http://127.0.0.1:8000` in the

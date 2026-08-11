@@ -15,33 +15,42 @@ def max_drawdown(equity: pd.Series) -> float:
 
 
 def drawdown_periods(equity: pd.Series, top_n: int = 10) -> list[dict]:
-    """List of drawdown episodes: start (peak), trough, end (recovery or last), depth, duration (bars)."""
+    """Drawdown episodes, deepest first.
+
+    Keys: start (PEAK — the last bar at the old high), trough, end, depth,
+    duration and recovery in BARS, and `recovered` — False for an episode still
+    under water at the last bar, whose `end` is then the last bar, NOT a
+    recovery (run.json v2 renders end/recovery_days as null in that case).
+
+    Positional bookkeeping (not `get_loc`) because after a recovery the peak
+    must advance to the recovery bar; carrying the stale peak forward started
+    every episode after the first one too early.
+    """
     eq = equity.dropna()
     if len(eq) < 2:
         return []
     dd = drawdown_series(eq)
+    idx, vals = dd.index, dd.to_numpy(dtype=float)
     out: list[dict] = []
     in_dd = False
-    start = trough = None
+    peak_i = trough_i = 0
     depth = 0.0
-    prev_ts = dd.index[0]
-    for ts, v in dd.items():
-        if v < 0 and not in_dd:
-            # duration convention: from the PEAK (last day at the high) to recovery
-            in_dd, start, trough, depth = True, prev_ts, ts, v
+    for i, v in enumerate(vals):
         if not in_dd:
-            prev_ts = ts
-        elif in_dd:
-            if v < depth:
-                depth, trough = v, ts
-            if v == 0:
-                out.append({"start": start, "trough": trough, "end": ts,
-                            "depth": float(depth),
-                            "duration": int(dd.index.get_loc(ts) - dd.index.get_loc(start))})
-                in_dd = False
+            if v >= 0:
+                peak_i = i
+                continue
+            in_dd, trough_i, depth = True, i, v
+        if v < depth:
+            depth, trough_i = v, i
+        if v >= 0:
+            out.append({"start": idx[peak_i], "trough": idx[trough_i], "end": idx[i],
+                        "depth": float(depth), "duration": int(i - peak_i),
+                        "recovery": int(i - trough_i), "recovered": True})
+            in_dd, peak_i = False, i
     if in_dd:
-        out.append({"start": start, "trough": trough, "end": dd.index[-1],
-                    "depth": float(depth),
-                    "duration": int(len(dd) - 1 - dd.index.get_loc(start))})
+        out.append({"start": idx[peak_i], "trough": idx[trough_i], "end": idx[-1],
+                    "depth": float(depth), "duration": int(len(vals) - 1 - peak_i),
+                    "recovery": None, "recovered": False})
     out.sort(key=lambda p: p["depth"])
     return out[:top_n]

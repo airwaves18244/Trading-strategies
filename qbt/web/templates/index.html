@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>qbt — backtest terminal</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📈</text></svg>">
 <link rel="stylesheet" href="/static/styles.css">
 <script src="/static/vendor/echarts.min.js"></script>
 <script defer src="/static/vendor/alpine.min.js"></script>
@@ -11,160 +12,421 @@
 <script src="/static/app.js"></script>
 </head>
 <body x-data="terminal()" x-init="init()">
+
+<!-- ======================================================== HEADER ====== -->
 <header>
   <span class="logo">qbt</span>
   <span class="sub">MOEX backtest terminal</span>
-  <span class="runner-badge">engine: {{ runner }}</span>
+  <span class="badge-engine">engine: {{ runner }}</span>
   <span class="status" x-text="statusLine"></span>
+  <button class="icon-btn" @click="toggleTheme()"
+          :title="theme === 'dark' ? 'switch to light theme' : 'switch to dark theme'"
+          x-text="theme === 'dark' ? '☀' : '☾'"></button>
+  <div class="progress" x-show="running">
+    <span class="bar" x-show="progress > 0" :style="'width:' + (100 * progress).toFixed(1) + '%'"></span>
+    <span class="indet" x-show="!(progress > 0)"></span>
+  </div>
 </header>
 
 <main>
-  <!-- LEFT: strategy picker + params -->
+  <!-- ====================================================== LEFT ======== -->
   <aside class="left">
-    <input class="search" type="text" placeholder="search strategies…" x-model="search">
-    <div class="strat-list">
-      <template x-for="grp in groupedStrategies" :key="grp.category">
-        <div>
-          <div class="cat" x-text="grp.category"></div>
-          <template x-for="s in grp.items" :key="s.key">
-            <div class="strat" :class="{active: sel && sel.key===s.key}" @click="select(s)">
-              <span x-text="s.name"></span>
-              <span class="badge" :class="'g'+s.group" x-text="s.group"></span>
-            </div>
-          </template>
-        </div>
-      </template>
+    <div class="search-wrap">
+      <input id="search" class="search" type="text" placeholder="search strategies…  ( / )" x-model="search">
     </div>
 
-    <div class="form" x-show="sel">
-      <h3 x-text="sel?.name"></h3>
-      <p class="desc" x-text="sel?.description"></p>
-      <div x-show="sel?.data_required" class="warn">
-        needs data: <span x-text="sel?.data_requirements.join(', ')"></span>
-        (put CSV into <code>data/events/&lt;schema&gt;.csv</code>)
+    <div class="scroll">
+      <div class="strat-list">
+        <template x-for="grp in groupedStrategies" :key="grp.category">
+          <div>
+            <div class="cat" x-text="grp.category"></div>
+            <template x-for="s in grp.items" :key="s.key">
+              <div class="strat" :class="{active: sel && sel.key === s.key}" @click="select(s)" :title="s.key">
+                <span x-text="s.name"></span>
+                <span class="badge" :class="'g' + s.group" x-text="s.group"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+        <div class="dim" x-show="!groupedStrategies.length">no strategies match</div>
       </div>
-      <template x-for="p in sel?.params || []" :key="p.name">
-        <label class="param">
-          <span :title="p.doc + (p.source ? ' ['+p.source+']' : '')" x-text="p.name"></span>
-          <template x-if="p.choices">
-            <select x-model="form.params[p.name]">
-              <template x-for="c in p.choices"><option :value="c" x-text="c"></option></template>
-            </select>
-          </template>
-          <template x-if="!p.choices">
-            <input type="text" x-model="form.params[p.name]"
-                   :placeholder="p.low!==null ? p.low+' … '+p.high : ''">
-          </template>
+
+      <div class="form" x-show="sel">
+        <h3 x-text="sel?.name"></h3>
+        <p class="desc" x-text="sel?.description"></p>
+        <div x-show="sel?.data_required" class="needs-data">
+          needs data: <span x-text="(sel?.data_requirements || []).join(', ')"></span>
+          (put CSV into <code>data/events/&lt;schema&gt;.csv</code>)
+        </div>
+
+        <template x-for="p in sel?.params || []" :key="p.name">
+          <label class="param">
+            <span :title="p.doc + (p.source ? ' [' + p.source + ']' : '')" x-text="p.name"></span>
+            <template x-if="p.choices">
+              <select x-model="form.params[p.name]">
+                <template x-for="c in p.choices" :key="c"><option :value="c" x-text="c"></option></template>
+              </select>
+            </template>
+            <template x-if="!p.choices">
+              <input type="text" x-model="form.params[p.name]"
+                     :placeholder="p.low !== null ? p.low + ' … ' + p.high : ''">
+            </template>
+          </label>
+        </template>
+
+        <label class="param"><span>universe</span>
+          <select x-model="form.universe">
+            <template x-for="u in universes" :key="u"><option :value="u" x-text="u"></option></template>
+          </select>
         </label>
-      </template>
-      <label class="param"><span>universe</span>
-        <select x-model="form.universe">
-          <template x-for="u in universes"><option :value="u" x-text="u"></option></template>
-        </select>
-      </label>
-      <div class="row2">
-        <label class="param"><span>start</span><input type="date" x-model="form.start"></label>
-        <label class="param"><span>end</span><input type="date" x-model="form.end"></label>
+        <div class="row2">
+          <label class="param"><span>start</span><input type="date" x-model="form.start"></label>
+          <label class="param"><span>end</span><input type="date" x-model="form.end"></label>
+        </div>
+        <div class="row2">
+          <label class="param"><span>costs</span>
+            <select x-model="form.cost_preset"><option>moex_equity</option><option>forts</option></select></label>
+          <label class="param"><span>lag</span>
+            <input type="number" min="0" max="3" x-model.number="form.execution_lag"></label>
+        </div>
+        <div class="row2">
+          <label class="param"><span>overlay</span>
+            <select x-model="form.overlay">
+              <option value="">none</option><option value="vol_target">vol_target</option>
+            </select></label>
+          <label class="param"><span>vol target</span>
+            <input type="text" x-model="form.vol_target" placeholder="0.10"></label>
+        </div>
+
+        <button class="run" @click="run()" :disabled="running"
+                x-text="running ? 'running… ' + Math.round(progress * 100) + '%' : 'RUN BACKTEST'"></button>
+
+        <details class="sweep-box">
+          <summary>parameter sweep</summary>
+          <label class="param"><span>param 1</span>
+            <input type="text" x-model="sweepCfg.p1" placeholder="name=lo:hi:step"></label>
+          <label class="param"><span>param 2</span>
+            <input type="text" x-model="sweepCfg.p2" placeholder="optional"></label>
+          <button class="run secondary" @click="runSweep()" :disabled="running">RUN SWEEP</button>
+        </details>
       </div>
-      <div class="row2">
-        <label class="param"><span>costs</span>
-          <select x-model="form.cost_preset"><option>moex_equity</option><option>forts</option></select></label>
-        <label class="param"><span>lag</span><input type="number" min="0" max="3" x-model.number="form.execution_lag"></label>
-      </div>
-      <div class="row2">
-        <label class="param"><span>overlay</span>
-          <select x-model="form.overlay"><option value="">none</option><option value="vol_target">vol_target</option></select></label>
-        <label class="param"><span>vol target</span><input type="text" x-model="form.vol_target" placeholder="0.10"></label>
-      </div>
-      <button class="run" @click="run()" x-text="running ? 'running… '+Math.round(progress*100)+'%' : 'RUN BACKTEST'"
-              :disabled="running"></button>
-      <details class="sweep-box">
-        <summary>parameter sweep</summary>
-        <label class="param"><span>param 1</span>
-          <input type="text" x-model="sweepCfg.p1" placeholder="name=lo:hi:step"></label>
-        <label class="param"><span>param 2</span>
-          <input type="text" x-model="sweepCfg.p2" placeholder="optional"></label>
-        <button class="run secondary" @click="runSweep()" :disabled="running">RUN SWEEP</button>
-      </details>
     </div>
 
+    <!-- history ------------------------------------------------------- -->
     <div class="history">
-      <div class="cat">history</div>
-      <template x-for="r in runs.slice(0,20)" :key="r.run_id">
-        <div class="hist-row" :class="{active: r.run_id===currentRunId}" @click="loadRun(r)">
-          <span x-text="r.strategy_key"></span>
-          <span class="dim" x-text="r.state"></span>
-        </div>
-      </template>
+      <div class="cat">
+        <span x-text="'history · ' + runs.length"></span>
+        <button class="cmp-btn" x-show="cmpSel.length >= 2" @click="openCompare()"
+                x-text="'COMPARE ' + cmpSel.length"></button>
+      </div>
+      <div class="rows">
+        <template x-for="r in sortedRuns" :key="r.run_id">
+          <div class="hist-row" :class="{active: r.run_id === currentRunId}" :title="runTitle(r)">
+            <input type="checkbox" :checked="cmpChecked(r)" :disabled="r.state !== 'done'"
+                   @click.stop="toggleCmp(r, $event)" title="select for compare (2–6)">
+            <button class="row-btn" :class="{on: r.starred}" @click.stop="toggleStar(r, $event)"
+                    x-text="r.starred ? '★' : '☆'" title="star"></button>
+
+            <div class="body" @click="loadRun(r)" @dblclick.stop="startLabel(r, $event)">
+              <template x-if="editingId === r.run_id">
+                <input class="label-in" :id="'lbl-' + r.run_id" x-model="labelDraft" @click.stop
+                       @keydown.enter.stop="saveLabel(r)" @keydown.escape.stop="editingId = null"
+                       @blur="saveLabel(r)" placeholder="label…">
+              </template>
+              <template x-if="editingId !== r.run_id">
+                <div>
+                  <span class="name" :class="{dead: r.state !== 'done'}"
+                        x-text="r.strategy_key || r.run_id"></span>
+                  <span class="meta">
+                    <span class="tag-lbl" x-show="r.label" x-text="r.label"></span>
+                    <span x-text="(r.label ? ' · ' : '') + runRange(r) + (r.state !== 'done' ? ' · ' + r.state : '')"></span>
+                  </span>
+                </div>
+              </template>
+            </div>
+
+            <span class="chip-sh" :class="sign(r.summary?.sharpe)"
+                  x-text="r.summary ? num(r.summary.sharpe) : '·'" title="sharpe"></span>
+            <button class="row-btn danger" :class="{armed: confirmDel === r.run_id}"
+                    @click.stop="delRun(r, $event)"
+                    :title="confirmDel === r.run_id ? 'click again to delete' : 'delete run'"
+                    x-text="confirmDel === r.run_id ? '✓' : '×'"></button>
+          </div>
+        </template>
+        <div class="dim" x-show="!runs.length">no runs yet</div>
+      </div>
+    </div>
+
+    <div class="hint">
+      <span><kbd>Ctrl</kbd>+<kbd>↵</kbd> run</span>
+      <span><kbd>/</kbd> search</span>
+      <span><kbd>Esc</kbd> dismiss error</span>
+      <span>dbl-click a run to label it</span>
     </div>
   </aside>
 
-  <!-- CENTER: charts -->
+  <!-- ==================================================== CENTER ======== -->
   <section class="center">
-    <nav class="tabs">
-      <template x-for="t in ['Equity','Drawdown','Chart','Sweep']">
-        <button :class="{active: tab===t}" @click="tab=t; renderCurrent()" x-text="t"></button>
+    <nav class="tabbar">
+      <template x-for="t in centerTabs" :key="t">
+        <button :class="{active: tab === t}" @click="setTab(t)" x-text="t"></button>
       </template>
     </nav>
-    <div id="chart-main" class="chart"></div>
-    <div class="error" x-show="error" x-text="error"></div>
+
+    <div class="toolbar">
+      <span class="tools" x-show="tab === 'Equity'">
+        <label><input type="checkbox" x-model="eqLog" @change="renderCurrent()"> log</label>
+        <label><input type="checkbox" x-model="eqGross" @change="renderCurrent()"> gross</label>
+        <span class="dim">net · gross · benchmark, drawdown band on the right axis</span>
+      </span>
+
+      <span class="tools" x-show="tab === 'Drawdown'">
+        <span class="dim">underwater curve — the five deepest drawdowns are shaded</span>
+      </span>
+
+      <span class="tools" x-show="tab === 'Monthly'">
+        <span class="dim">calendar month net returns, compounded within the month</span>
+      </span>
+
+      <span class="tools" x-show="tab === 'Rolling'">
+        <span class="seg">
+          <button :class="{active: rollWhich === 'sharpe'}" @click="rollWhich = 'sharpe'; renderCurrent()">sharpe</button>
+          <button :class="{active: rollWhich === 'vol'}" @click="rollWhich = 'vol'; renderCurrent()">vol</button>
+          <button x-show="rollingHasBeta" :class="{active: rollWhich === 'beta'}"
+                  @click="rollWhich = 'beta'; renderCurrent()">beta</button>
+        </span>
+        <span class="dim">252-bar rolling window</span>
+      </span>
+
+      <span class="tools" x-show="tab === 'Exposure'">
+        <span class="dim">gross / net / long / short exposure, position count on the right axis</span>
+      </span>
+
+      <span class="tools" x-show="tab === 'Chart'">
+        <label>symbol
+          <select x-model="chartSymbol" @change="renderCurrent()">
+            <template x-for="s in chartSymbols" :key="s"><option :value="s" x-text="s"></option></template>
+          </select>
+        </label>
+        <span class="dim">bars + fills for the selected symbol</span>
+      </span>
+
+      <span class="tools" x-show="tab === 'Sweep'">
+        <label>metric
+          <select x-model="sweepMetric" @change="renderCurrent()">
+            <template x-for="m in sweepMetrics" :key="m"><option :value="m" x-text="m"></option></template>
+          </select>
+        </label>
+        <span class="dim" x-text="(sweepRows?.length || 0) + ' rows'"></span>
+      </span>
+
+      <span class="tools" x-show="tab === 'Compare'">
+        <span x-text="cmpSel.length + ' run(s) selected'"></span>
+        <button class="mini" style="margin:0" x-show="cmpSel.length"
+                @click="cmpSel = []; cmpRuns = null; cmpKey = ''; renderCurrent()">clear</button>
+        <span class="dim">equity curves normalised to 1.00 at their first point</span>
+      </span>
+    </div>
+
+    <div class="chart-wrap">
+      <div id="chart-main" class="chart"></div>
+      <div class="empty" x-show="chartEmpty"><span x-text="emptyMsg"></span></div>
+    </div>
+
+    <div class="cmp-table" x-show="tab === 'Compare' && (cmpRuns?.length || 0) > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>metric</th>
+            <template x-for="r in cmpRuns || []" :key="r.run_id">
+              <th class="num" x-text="r.label || r.meta?.strategy_key || String(r.run_id).slice(0, 8)"></th>
+            </template>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="k in cmpMetricKeys" :key="k">
+            <tr>
+              <td class="dim" x-text="k"></td>
+              <template x-for="r in cmpRuns || []" :key="r.run_id">
+                <td class="num" x-text="fmt(k, r.metrics ? r.metrics[k] : null)"></td>
+              </template>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="error" x-show="error">
+      <button class="x" @click="clearError()" title="dismiss (Esc)">×</button>
+      <span x-text="error"></span>
+      <details x-show="errorTrace">
+        <summary>traceback</summary>
+        <pre x-text="errorTrace"></pre>
+      </details>
+    </div>
   </section>
 
-  <!-- RIGHT: results -->
+  <!-- ===================================================== RIGHT ======== -->
   <aside class="right">
-    <nav class="tabs small">
-      <template x-for="t in ['Summary','Years','Costs','Trades','Doc','Data']">
-        <button :class="{active: rtab===t}" @click="rtab=t; if(t==='Data') loadData()" x-text="t"></button>
+    <nav class="tabbar small">
+      <template x-for="t in rightTabs" :key="t">
+        <button :class="{active: rtab === t}" @click="setRTab(t)" x-text="t"></button>
       </template>
     </nav>
 
-    <div x-show="rtab==='Summary'" class="pane">
-      <template x-for="[k,v] in metricRows" :key="k">
-        <div class="metric"><span x-text="k"></span><b x-text="fmt(k,v)"></b></div>
+    <!-- Summary ------------------------------------------------------- -->
+    <div x-show="rtab === 'Summary'" class="pane">
+      <div class="dim" x-show="!result">no result loaded</div>
+      <template x-for="g in summaryGroups" :key="g.title">
+        <div class="grp">
+          <h4><span x-text="g.title"></span></h4>
+          <template x-for="row in g.rows" :key="row[0]">
+            <div class="metric"><span x-text="row[0]"></span><b x-text="fmt(row[0], row[1])"></b></div>
+          </template>
+        </div>
       </template>
+      <div class="grp" x-show="result?.benchmark_stats">
+        <h4><span>vs benchmark</span><span class="sym" x-text="result?.benchmark_stats?.symbol"></span></h4>
+        <template x-for="row in benchRows" :key="row[0]">
+          <div class="metric">
+            <span x-text="row[0]"></span>
+            <b x-text="fmt(row[0].replace('bench ', ''), row[1])"></b>
+          </div>
+        </template>
+      </div>
     </div>
 
-    <div x-show="rtab==='Years'" class="pane">
-      <table><thead><tr><th>period</th><th>gross</th><th>net</th><th>sharpe</th><th>maxDD</th></tr></thead>
-      <tbody><template x-for="r in result?.per_year || []">
-        <tr :class="{split: (''+r.period).startsWith('pre')||(''+r.period).startsWith('post')}">
-          <td x-text="r.period"></td><td x-text="pct(r.gross)"></td><td x-text="pct(r.net)"></td>
-          <td x-text="num(r.sharpe_net)"></td><td x-text="pct(r.max_dd)"></td>
-        </tr></template></tbody></table>
+    <!-- Years --------------------------------------------------------- -->
+    <div x-show="rtab === 'Years'" class="pane">
+      <table>
+        <thead><tr><th>period</th><th class="num">gross</th><th class="num">net</th>
+          <th class="num">sharpe</th><th class="num">maxDD</th></tr></thead>
+        <tbody>
+          <template x-for="(r, i) in result?.per_year || []" :key="i">
+            <tr :class="{split: ('' + r.period).startsWith('pre') || ('' + r.period).startsWith('post')}">
+              <td x-text="r.period"></td>
+              <td class="num" x-text="pct(r.gross)"></td>
+              <td class="num" x-text="pct(r.net)"></td>
+              <td class="num" x-text="num(r.sharpe_net)"></td>
+              <td class="num" x-text="pct(r.max_dd)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div class="cat" x-show="(result?.drawdowns?.length || 0) > 0">deepest drawdowns</div>
+      <table x-show="(result?.drawdowns?.length || 0) > 0">
+        <thead><tr><th>start</th><th>trough</th><th>end</th><th class="num">depth</th>
+          <th class="num">days</th><th class="num">rec.</th></tr></thead>
+        <tbody>
+          <template x-for="(d, i) in (result?.drawdowns || []).slice(0, 10)" :key="i">
+            <tr>
+              <td x-text="day(d.start)"></td>
+              <td x-text="day(d.trough)"></td>
+              <td x-text="d.end ? day(d.end) : '—'"></td>
+              <td class="num neg" x-text="pct(d.depth)"></td>
+              <td class="num" x-text="int(d.days)"></td>
+              <td class="num" x-text="int(d.recovery_days)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
 
-    <div x-show="rtab==='Costs'" class="pane">
-      <template x-for="[k,v] in Object.entries(result?.costs_total || {})">
-        <div class="metric"><span x-text="k"></span><b x-text="pct(v)"></b></div>
+    <!-- Trades -------------------------------------------------------- -->
+    <div x-show="rtab === 'Trades'" class="pane">
+      <div class="chips" x-show="result?.trade_stats">
+        <template x-for="c in tradeChips" :key="c[0]">
+          <span class="chip"><u x-text="c[0]"></u><b x-text="c[1]"></b></span>
+        </template>
+      </div>
+      <button class="mini" @click="exportTrades()" :disabled="!trades.length">export CSV</button>
+      <table>
+        <thead><tr>
+          <th class="sortable" @click="sortTrades('ts')" x-text="'ts' + sortMark('ts')"></th>
+          <th class="sortable" @click="sortTrades('symbol')" x-text="'sym' + sortMark('symbol')"></th>
+          <th>side</th>
+          <th class="sortable num" @click="sortTrades('pnl')" x-text="'pnl' + sortMark('pnl')"></th>
+          <th>reason</th>
+        </tr></thead>
+        <tbody>
+          <template x-for="(t, i) in trades.slice(0, 300)" :key="i">
+            <tr>
+              <td x-text="(t.ts || '').slice(0, 10)"></td>
+              <td x-text="short(t.symbol)"></td>
+              <td x-text="t.side > 0 ? '+' : '−'"></td>
+              <!-- ledger pnl is a fraction of NAV — percent, not a raw 0.00 decimal -->
+              <td class="num" :class="{neg: t.pnl < 0, pos: t.pnl > 0}" x-text="t.pnl == null ? '—' : (100 * t.pnl).toFixed(2) + '%'"></td>
+              <td x-text="t.reason"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <div class="dim" x-show="trades.length > 300" x-text="'showing first 300 of ' + trades.length"></div>
+      <div class="dim" x-show="!trades.length">no trades in this run</div>
+    </div>
+
+    <!-- Attribution --------------------------------------------------- -->
+    <div x-show="rtab === 'Attribution'" class="pane">
+      <table>
+        <thead><tr><th>symbol</th><th class="num">pnl</th><th class="num">avg w</th><th class="num">trades</th></tr></thead>
+        <tbody>
+          <template x-for="(a, i) in result?.attribution || []" :key="i">
+            <tr>
+              <td x-text="short(a.symbol)"></td>
+              <td class="num"><span class="mark" :class="sign(a.pnl)">●</span><span x-text="pct(a.pnl)"></span></td>
+              <td class="num" x-text="pct(a.avg_weight)"></td>
+              <td class="num" x-text="int(a.n_trades)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <div class="dim" x-show="!(result?.attribution?.length)">no attribution rows in this run</div>
+    </div>
+
+    <!-- Costs --------------------------------------------------------- -->
+    <div x-show="rtab === 'Costs'" class="pane">
+      <template x-for="row in Object.entries(result?.costs_total || {})" :key="row[0]">
+        <div class="metric"><span x-text="row[0]"></span><b x-text="pct(row[1])"></b></div>
       </template>
-      <div class="metric"><span>n_trades</span><b x-text="result?.n_trades"></b></div>
+      <div class="metric"><span>n_trades</span><b x-text="int(result?.n_trades)"></b></div>
+      <div class="metric"><span>cost_drag_bps_ann</span><b x-text="int(result?.metrics?.cost_drag_bps_ann)"></b></div>
     </div>
 
-    <div x-show="rtab==='Trades'" class="pane">
-      <button class="mini" @click="exportTrades()">export CSV</button>
-      <table><thead><tr><th @click="sortTrades('ts')">ts</th><th @click="sortTrades('symbol')">sym</th>
-        <th>side</th><th @click="sortTrades('pnl')">pnl</th><th>reason</th></tr></thead>
-      <tbody><template x-for="(t,i) in trades.slice(0,300)" :key="i">
-        <tr><td x-text="(t.ts||'').slice(0,10)"></td><td x-text="short(t.symbol)"></td>
-        <td x-text="t.side>0?'+':'−'"></td><td :class="{neg:t.pnl<0,pos:t.pnl>0}" x-text="num(t.pnl)"></td>
-        <td x-text="t.reason"></td></tr></template></tbody></table>
-    </div>
+    <!-- Doc ----------------------------------------------------------- -->
+    <div x-show="rtab === 'Doc'" class="pane doc" x-html="docHtml"></div>
 
-    <div x-show="rtab==='Doc'" class="pane doc" x-html="docHtml"></div>
-
-    <div x-show="rtab==='Data'" class="pane">
+    <!-- Data ---------------------------------------------------------- -->
+    <div x-show="rtab === 'Data'" class="pane">
       <div class="cat">providers</div>
-      <template x-for="h in health"><div class="metric">
-        <span x-text="h.provider"></span><b :class="h.ok?'pos':'neg'" x-text="h.ok?'ok':h.detail"></b></div></template>
+      <template x-for="(h, i) in health" :key="i">
+        <div class="metric">
+          <span x-text="h.provider"></span>
+          <b :class="h.ok ? 'pos' : 'neg'" x-text="h.ok ? 'ok' : h.detail"></b>
+        </div>
+      </template>
+
       <div class="cat">cache coverage</div>
-      <table><thead><tr><th>symbol</th><th>freq</th><th>from</th><th>to</th></tr></thead>
-      <tbody><template x-for="c in coverage.slice(0,200)">
-        <tr><td x-text="short(c.symbol)"></td><td x-text="c.freq"></td>
-        <td x-text="(c.first_ts||'').slice(0,10)"></td><td x-text="(c.last_ts||'').slice(0,10)"></td></tr>
-      </template></tbody></table>
+      <table>
+        <thead><tr><th>symbol</th><th>freq</th><th>from</th><th>to</th></tr></thead>
+        <tbody>
+          <template x-for="(c, i) in coverage.slice(0, 200)" :key="i">
+            <tr>
+              <td x-text="short(c.symbol)"></td>
+              <td x-text="c.freq"></td>
+              <td x-text="(c.first_ts || '').slice(0, 10)"></td>
+              <td x-text="(c.last_ts || '').slice(0, 10)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
       <div class="cat">pull data</div>
       <label class="param"><span>universe</span>
-        <select x-model="ensureCfg.universe"><template x-for="u in universes"><option :value="u" x-text="u"></option></template></select></label>
+        <select x-model="ensureCfg.universe">
+          <template x-for="u in universes" :key="u"><option :value="u" x-text="u"></option></template>
+        </select>
+      </label>
       <label class="param"><span>start</span><input type="date" x-model="ensureCfg.start"></label>
       <button class="run secondary" @click="ensure()">PULL (moex_iss)</button>
       <div class="dim" x-text="ensureStatus"></div>

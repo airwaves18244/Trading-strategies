@@ -142,11 +142,13 @@ def _trades_ledger(seed: int, index: pd.DatetimeIndex, symbols: tuple[str, ...],
         notional = round(qty * price, 2)
         cost_bps = float(rng.uniform(5, 25))
         reason = _TRADE_REASONS[int(rng.integers(0, len(_TRADE_REASONS)))]
-        pnl = float(rng.normal(0, 1) * notional * 0.01 * side)
+        # pnl must live in the SAME units as equity (NAV starts at 1.0), i.e. be a
+        # fraction of NAV — ruble-scale pnl here made trade_stats read "avg win 11418%"
+        pnl = float(rng.normal(0.0005, 0.004))
         rows.append({
             "ts": ts, "symbol": sym, "side": side, "qty": qty, "price": round(price, 4),
             "notional": notional, "cost_bps": round(cost_bps, 2), "reason": reason,
-            "tag": f"ep-{j // 4}", "pnl": round(pnl, 2),
+            "tag": f"ep-{j // 4}", "pnl": round(pnl, 6),  # NAV fractions — 2dp would zero them out
         })
     return pd.DataFrame(rows, columns=list(TRADES_COLUMNS))
 
@@ -278,7 +280,8 @@ class FakeRunner:
         tick(0.8)
         bench_close = _gbm_close(_seed(seed, "IMOEX"), index, mu=0.0003, sigma=0.012, crash=True)
         bench_ret = bench_close.pct_change(fill_method=None).fillna(0.0)
-        benchmark_equity = (1 + bench_ret).cumprod()
+        # series .name becomes benchmark_stats.symbol in the UI — not "close"
+        benchmark_equity = (1 + bench_ret).cumprod().rename("IMOEX (synthetic)")
 
         meta = RunMeta(
             run_id=run_id, strategy_key=req.strategy_key, params=params,
@@ -321,8 +324,11 @@ class FakeRunner:
             sharpe_is = float(is_r.mean() / is_r.std() * np.sqrt(252)) if len(is_r) > 1 and is_r.std() > 0 else 0.0
             sharpe_oos = float(oos_r.mean() / oos_r.std() * np.sqrt(252)) if len(oos_r) > 1 and oos_r.std() > 0 else 0.0
             row = dict(combo_params)
-            row.update({"sharpe_net": round(sharpe, 3), "cagr": round(cagr, 4),
+            # column names mirror qbt.engine.sweep metric_keys ("sharpe", not "sharpe_net")
+            # so the UI's metric selector works identically against both engines
+            row.update({"sharpe": round(sharpe, 3), "cagr": round(cagr, 4),
                         "max_dd": round(max_dd, 4), "calmar": round(cagr / abs(max_dd), 3) if max_dd else 0.0,
+                        "turnover_ann": round(2.0 + 3.0 * float(rng.random()), 2),
                         "sharpe_is": round(sharpe_is, 3), "sharpe_oos": round(sharpe_oos, 3)})
             rows.append(row)
             if progress_cb is not None:

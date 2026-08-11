@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 
+from qbt.analytics.report import is_oos_sharpe
 from qbt.engine.context import DataContext
 from qbt.engine.costs import CostModel
 from qbt.strategy.base import Strategy
@@ -37,10 +38,15 @@ def sweep(
             res = run_backtest(strategy_cls(**params), ctx, cost_model=cost_model, **run_kwargs)
             for k in metric_keys:
                 row[k] = res.metrics.get(k)
+            # IS/OOS split (docs/ui-upgrade.md §1): a cell whose Sharpe survives
+            # only in-sample is curve fit — the heatmap must be able to show it.
+            row["sharpe_is"], row["sharpe_oos"] = is_oos_sharpe(
+                res.returns_net, ppy=getattr(ctx, "ann_factor", 252.0))
             row["error"] = None
         except Exception as e:  # noqa: BLE001 - a failing cell must not kill the sweep
             for k in metric_keys:
                 row[k] = None
+            row["sharpe_is"] = row["sharpe_oos"] = None
             row["error"] = f"{type(e).__name__}: {e}"
         return row
 

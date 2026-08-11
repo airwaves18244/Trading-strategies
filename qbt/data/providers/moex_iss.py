@@ -56,6 +56,8 @@ _FUTURES_SECID_RE = re.compile(r"^[A-Z]{2}[FGHJKMNQUVXZ][0-9]$")
 KNOWN_INDEX_SECIDS = frozenset({
     "IMOEX", "IMOEX2", "RTSI", "MOEXBC", "MOEXBMI", "MOEXOG", "MOEXEU", "MOEXTL",
     "MOEXCN", "MOEXFN", "MOEXMM", "MOEXCH", "MOEXTN", "MOEXRE", "MOEX10", "RGBITR",
+    # total-return indices — the correct benchmark for dividend-reinvested strategies
+    "MCFTR", "MCFTRR", "RTSTR", "RTSTRR", "RGBI",
 })
 
 _INTERVAL_BY_FREQ: dict[Freq, int] = {Freq.M1: 1, Freq.M10: 10, Freq.H1: 60}

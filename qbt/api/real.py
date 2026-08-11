@@ -104,14 +104,26 @@ class RealRunner:
                 f"No cached bars for universe '{req.universe}' ({req.freq}). "
                 f"Run: qbt data ensure --universe {req.universe} --start {req.start}"
             )
+        # Benchmark: an actual index, not covered[0] — comparing a total-return
+        # strategy against the first universe member is meaningless. MCFTR is the
+        # dividend-reinvested MOEX index, the like-for-like yardstick.
+        bench = cfg.get("benchmark", "MOEX:MCFTR")
+        if bench and store.coverage(bench, Freq(req.freq)) is not None and bench not in covered:
+            covered = covered + [bench]
+        elif bench and store.coverage(bench, Freq(req.freq)) is None:
+            bench = covered[0] if covered else None
+
         instruments = _instruments_for(covered, futures)
         actions = service.load_corporate_actions(covered) if hasattr(service, "load_corporate_actions") else []
         ctx = service.load_context(
             symbols=covered, freq=Freq(req.freq), start=start.to_pydatetime(),
             end=end.to_pydatetime(), instruments=instruments,
-            actions=actions, benchmark_symbol=covered[0],
+            actions=actions, benchmark_symbol=bench,
             delisting_return_pct=self.settings.delisting_return_pct,
         )
+        # the benchmark is a yardstick, not tradable inventory
+        if bench and bench not in symbols and bench in ctx.universe_mask.columns:
+            ctx.universe_mask[bench] = False
         ctx.events.update(_load_events(self._repo_root))
         return ctx
 
